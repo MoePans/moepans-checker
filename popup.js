@@ -58,14 +58,45 @@ document.addEventListener("DOMContentLoaded", () => {
     if (items.length === 0) {
       previewList.innerHTML = '<div class="empty">无根目录列表</div>';
     } else {
-      previewList.innerHTML = items
-        .map((it) => {
-          const icon = it.is_dir ? "📁" : "📄";
-          const sz = formatSize(it.size);
-          const pad = Math.min(5, Number(it.depth || 0)) * 12;
-          return `<div class="tree-item" style="padding-left:${pad}px"><span class="tree-name" title="${escapeHtml(it.path || it.name)}">${icon} ${escapeHtml(it.name)}</span>${sz ? `<span class="tree-size">${escapeHtml(sz)}</span>` : ""}</div>`;
-        })
-        .join("");
+      // 构建嵌套树结构，支持任意层级展开/收缩
+      const roots = [];
+      const stack = [];
+      for (const it of items) {
+        const node = { ...it, depth: Number(it.depth || 0), children: [] };
+        while (stack.length > 0 && stack[stack.length - 1].depth >= node.depth) {
+          stack.pop();
+        }
+        if (stack.length === 0) roots.push(node);
+        else stack[stack.length - 1].children.push(node);
+        stack.push(node);
+      }
+      function renderNodes(nodes) {
+        return nodes.map((n) => {
+          const sz = formatSize(n.size);
+          if (n.is_dir && n.children.length > 0) {
+            return `<details class="tree-folder" open>
+              <summary title="${escapeHtml(n.path || n.name)}">
+                <span class="tree-name"><span class="chev">▶</span>📁 ${escapeHtml(n.name)}</span>
+                <span class="tree-size">${n.children.length}项</span>
+              </summary>
+              <div class="tree-children">${renderNodes(n.children)}</div>
+            </details>`;
+          }
+          const icon = n.is_dir ? "📁" : "📄";
+          return `<div class="tree-item"><span class="tree-name" title="${escapeHtml(n.path || n.name)}">${icon} ${escapeHtml(n.name)}</span>${sz ? `<span class="tree-size">${escapeHtml(sz)}</span>` : ""}</div>`;
+        }).join("");
+      }
+      previewList.innerHTML = renderNodes(roots);
+      const toggleBtn = document.getElementById("toggleTreeBtn");
+      if (toggleBtn) {
+        let allOpen = true;
+        toggleBtn.textContent = "全部收起";
+        toggleBtn.onclick = () => {
+          allOpen = !allOpen;
+          previewList.querySelectorAll("details.tree-folder").forEach((d) => { d.open = allOpen; });
+          toggleBtn.textContent = allOpen ? "全部收起" : "全部展开";
+        };
+      }
     }
   }
 

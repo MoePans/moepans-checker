@@ -59,6 +59,11 @@
     .tree-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid #1e293b; }
     .tree-item:last-child { border-bottom: none; }
     .tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e8f0; }
+    details.tree-folder > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 3px 0; user-select: none; }
+    details.tree-folder > summary::-webkit-details-marker { display: none; }
+    details.tree-folder > summary .chev { display: inline-block; width: 12px; color: #94a3b8; transition: transform 0.15s; font-size: 10px; }
+    details.tree-folder[open] > summary .chev { transform: rotate(90deg); }
+    .tree-children { padding-left: 14px; border-left: 1px dashed #334155; margin-left: 5px; }
     .tree-size { color: #64748b; font-family: ui-monospace, monospace; flex-shrink: 0; font-size: 10.5px; }
     .log-list {
       max-height: 170px;
@@ -95,7 +100,7 @@
 <body>
   <div class="header">
     <div class="title">MoePans 测活助手</div>
-    <span class="ver">v1.2.0</span>
+    <span class="ver">v1.2.1</span>
   </div>
 
   <div class="card">
@@ -131,6 +136,7 @@
   <div class="card" id="previewCard" style="display:none;">
     <div class="log-header">
       <div class="label" id="previewTitle">最近采样目录预览</div>
+      <button class="btn" id="toggleTreeBtn">全部收起</button>
     </div>
     <div class="tree-meta" id="previewMeta"></div>
     <div class="tree-list" id="previewList"></div>

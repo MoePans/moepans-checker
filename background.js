@@ -104,10 +104,13 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
 async function collectMultiLevelTree(rootItems, fetchChildrenFn, maxDepth = 3, maxSubReqs = 8, maxItems = 80) {
   const result = [];
   const queue = [];
+  const seenIds = new Set();
   let subReqs = 0;
 
   for (const raw of (rootItems || [])) {
     if (result.length >= maxItems) break;
+    const rid = raw.id ? String(raw.id) : "";
+    if (rid) seenIds.add(rid);
     const node = {
       name: String(raw.name || "").trim(),
       path: String(raw.name || "").trim(),
@@ -117,14 +120,15 @@ async function collectMultiLevelTree(rootItems, fetchChildrenFn, maxDepth = 3, m
     };
     if (!node.name) continue;
     result.push(node);
-    if (node.is_dir && raw.id && maxDepth > 0) {
-      queue.push({ id: raw.id, parentPath: node.path, depth: 1, insertAfterIdx: result.length - 1 });
+    if (node.is_dir && rid && maxDepth > 0) {
+      queue.push({ id: rid, parentPath: node.path, depth: 1 });
     }
   }
 
-  // BFS 逐层展开子目录并按层级顺序整理
+  // BFS 逐层展开子目录（严格按 seenIds 去重防重复回环）
   const childrenByParent = new Map();
-  while (queue.length > 0 && subReqs < maxSubReqs && result.length < maxItems) {
+  let totalCount = result.length;
+  while (queue.length > 0 && subReqs < maxSubReqs && totalCount < maxItems) {
     const cur = queue.shift();
     if (!cur || cur.depth > maxDepth) continue;
     subReqs++;
@@ -136,9 +140,12 @@ async function collectMultiLevelTree(rootItems, fetchChildrenFn, maxDepth = 3, m
     }
     const list = [];
     for (const raw of (kids || [])) {
-      if (result.length + list.length >= maxItems) break;
+      if (totalCount >= maxItems) break;
+      const kidId = raw.id ? String(raw.id) : "";
+      if (kidId && seenIds.has(kidId)) continue;
       const nm = String(raw.name || "").trim();
       if (!nm) continue;
+      if (kidId) seenIds.add(kidId);
       const p = `${cur.parentPath}/${nm}`;
       const node = {
         name: nm,
@@ -148,11 +155,12 @@ async function collectMultiLevelTree(rootItems, fetchChildrenFn, maxDepth = 3, m
         size: Number(raw.size || 0)
       };
       list.push(node);
-      if (node.is_dir && raw.id && cur.depth < maxDepth) {
-        queue.push({ id: raw.id, parentPath: p, depth: cur.depth + 1 });
+      totalCount++;
+      if (node.is_dir && kidId && cur.depth < maxDepth) {
+        queue.push({ id: kidId, parentPath: p, depth: cur.depth + 1 });
       }
     }
-    childrenByParent.set(cur.parentPath, list);
+    if (list.length > 0) childrenByParent.set(cur.parentPath, list);
   }
 
   // 按深度优先顺序拼装成天然有序的树形列表
@@ -712,8 +720,7 @@ const XL_ALGOS = [
 ];
 
 let xunleiDeviceId = "";
-let xunleiCaptchaToken = "";
-let xunleiCaptchaTs = 0;
+const xunleiCaptchaCache = new Map();
 
 function getXunleiDeviceId() {
   if (xunleiDeviceId) return xunleiDeviceId;
@@ -732,10 +739,11 @@ function getXunleiCaptchaSign(devId, ts) {
   return `1.${s}`;
 }
 
-async function getXunleiCaptchaToken(force = false) {
+async function getXunleiCaptchaToken(force = false, action = "GET:/drive/v1/share") {
   const now = Date.now();
-  if (!force && xunleiCaptchaToken && now - xunleiCaptchaTs < 180000) {
-    return xunleiCaptchaToken;
+  const cached = xunleiCaptchaCache.get(action);
+  if (!force && cached && cached.token && now - cached.ts < 180000) {
+    return cached.token;
   }
   const devId = getXunleiDeviceId();
   const ts = String(now);
@@ -751,8 +759,8 @@ async function getXunleiCaptchaToken(force = false) {
         "x-device-id": devId
       },
       body: JSON.stringify({
-        action: "GET:/drive/v1/share",
-        captcha_token: xunleiCaptchaToken || "",
+        action,
+        captcha_token: cached?.token || "",
         client_id: XL_ANDROID_CLIENT_ID,
         device_id: devId,
         meta: {
@@ -768,13 +776,12 @@ async function getXunleiCaptchaToken(force = false) {
     if (res.ok) {
       const j = await res.json();
       if (j && j.captcha_token) {
-        xunleiCaptchaToken = j.captcha_token;
-        xunleiCaptchaTs = now;
-        return xunleiCaptchaToken;
+        xunleiCaptchaCache.set(action, { token: j.captcha_token, ts: now });
+        return j.captcha_token;
       }
     }
   } catch {}
-  return xunleiCaptchaToken || "";
+  return cached?.token || "";
 }
 
 async function checkXunlei(shareId, passCode = "", shareUrl = "") {
@@ -857,17 +864,20 @@ async function checkXunlei(shareId, passCode = "", shareUrl = "") {
         is_dir: String(it?.kind || "").includes("folder"),
         size: Number(it?.size || 0)
       })).filter((x) => x.name);
+      const passCodeToken = String(data?.pass_code_token || "");
       const { fileTree, totalSize } = await collectMultiLevelTree(rootRaw, async (parentId) => {
-        const subQs = new URLSearchParams({ share_id: shareId, parent_id: parentId, limit: "20" });
-        if (finalCode) subQs.set("pass_code", finalCode);
+        const subQs = new URLSearchParams({ share_id: shareId, parent_id: parentId, limit: "50", thumbnail_size: "SIZE_SMALL" });
+        if (passCodeToken) subQs.set("pass_code_token", passCodeToken);
+        else if (finalCode) subQs.set("pass_code", finalCode);
+        const detailCap = await getXunleiCaptchaToken(false, "GET:/drive/v1/share/detail");
         const hdrs = {
           "Accept": "application/json, text/plain, */*",
           "x-client-id": XL_ANDROID_CLIENT_ID,
           "x-client-version": XL_ANDROID_CLIENT_VERSION,
           "x-device-id": devId
         };
-        if (capToken) hdrs["x-captcha-token"] = capToken;
-        const r = await fetchWithTimeout(`https://api-pan.xunlei.com/drive/v1/share?${subQs.toString()}`, { method: "GET", headers: hdrs });
+        if (detailCap) hdrs["x-captcha-token"] = detailCap;
+        const r = await fetchWithTimeout(`https://api-pan.xunlei.com/drive/v1/share/detail?${subQs.toString()}`, { method: "GET", headers: hdrs });
         if (!r.ok) return [];
         const j = await r.json().catch(() => null);
         const arr = Array.isArray(j?.files) ? j.files : [];
