@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>MoePans 测活助手</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 380px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 14px;
+      font-size: 12px;
+    }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .title { font-size: 14px; font-weight: 600; color: #f8fafc; }
+    .ver { font-size: 11px; color: #94a3b8; background: #1e293b; padding: 2px 6px; border-radius: 4px; }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .row + .row { margin-top: 8px; padding-top: 8px; border-top: 1px solid #334155; }
+    .label { font-weight: 500; color: #f1f5f9; font-size: 12.5px; }
+    .desc { font-size: 11px; color: #94a3b8; margin-top: 2px; line-height: 1.35; }
+    input[type="checkbox"] { width: 16px; height: 16px; accent-color: #10b981; cursor: pointer; flex-shrink: 0; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: center; }
+    .stat-box { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px; }
+    .stat-num { font-size: 15px; font-weight: 600; font-family: ui-monospace, monospace; }
+    .ok { color: #34d399; }
+    .dead { color: #fbbf24; }
+    .uncertain { color: #94a3b8; }
+    .stat-label { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+    .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .log-actions { display: flex; gap: 6px; }
+    .btn {
+      background: #0f172a;
+      color: #cbd5e1;
+      border: 1px solid #475569;
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn:hover { background: #334155; color: #fff; }
+    .log-list {
+      max-height: 210px;
+      overflow-y: auto;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+    }
+    .log-item {
+      padding: 5px 4px;
+      border-bottom: 1px solid #1e293b;
+      line-height: 1.4;
+      word-break: break-all;
+    }
+    .log-item:last-child { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      padding: 0 4px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .badge-ok { background: #064e3b; color: #34d399; }
+    .badge-dead { background: #78350f; color: #fbbf24; }
+    .badge-uncertain { background: #334155; color: #cbd5e1; }
+    .muted { color: #64748b; }
+    .empty { color: #64748b; text-align: center; padding: 18px 0; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">MoePans 测活助手</div>
+    <span class="ver">v1.0.13</span>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="label">被动读页模式（推荐）</div>
+        <div class="desc">点击网盘链接打开后顺手识别有效性，零额外请求</div>
+      </div>
+      <input type="checkbox" id="passiveToggle">
+    </div>
+    <div class="row">
+      <div>
+        <div class="label">主动租约测活（可选）</div>
+        <div class="desc">在 MoePans 列表页按服务端租约低并发顺手验证（每页最多 5 条）</div>
+      </div>
+      <input type="checkbox" id="activeToggle">
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="stats">
+      <div class="stat-box">
+        <div class="stat-num ok" id="statOk">0</div>
+        <div class="stat-label">累计确认有效</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-num dead" id="statDead">0</div>
+        <div class="stat-label">累计发现失效</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="log-header">
+      <div class="label">测活排查日志（最近 100 条）</div>
+      <div class="log-actions">
+        <button class="btn" id="copyLogsBtn">复制</button>
+        <button class="btn" id="exportLogsBtn">导出</button>
+        <button class="btn" id="clearLogsBtn">清空</button>
+      </div>
+    </div>
+    <div class="log-list" id="logList">
+      <div class="empty">暂无测活日志</div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

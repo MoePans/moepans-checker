@@ -1,0 +1,388 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://pan.quark.cn/"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://pan.quark.cn"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||drive-h.quark.cn/1/clouddrive/share/",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://www.alipan.com/"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://www.alipan.com"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||api.aliyundrive.com/",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
+  },
+  {
+    "id": 3,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://drive.uc.cn/"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://drive.uc.cn"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||pc-api.uc.cn/1/clouddrive/share/",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
+  },
+  {
+    "id": 4,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://cloud.189.cn/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||cloud.189.cn/api/open/share/",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
+  },
+  {
+    "id": 5,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://pan.baidu.com/"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||pan.baidu.com/s/",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
+  },
+  {
+    "id": 6,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://pan.xunlei.com/"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://pan.xunlei.com"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||api-pan.xunlei.com/drive/v1/share",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
+  },
+  {
+    "id": 7,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://115.com/"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://115.com"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||webapi.115.com/share/",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
+  },
+  {
+    "id": 8,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://yun.139.com/"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://yun.139.com"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||yun.139.com/orchestration/",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
+  },
+  {
+    "id": 9,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://www.123pan.com/"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://www.123pan.com"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||yun.123pan.com/b/api/share/",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
+  }
+]

@@ -1,0 +1,92 @@
+{
+  "manifest_version": 3,
+  "name": "MoePans 测活助手",
+  "version": "1.0.13",
+  "description": "为 MoePans 提供双轨客户端网盘测活（默认被动读页零额外请求 + 可选租约主动测活）",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MoePans 测活助手"
+  },
+  "permissions": [
+    "storage",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "*://*.quark.cn/*",
+    "*://*.uc.cn/*",
+    "*://*.alipan.com/*",
+    "*://*.aliyundrive.com/*",
+    "*://*.baidu.com/*",
+    "*://*.189.cn/*",
+    "*://*.xunlei.com/*",
+    "*://*.123pan.com/*",
+    "*://*.123pan.cn/*",
+    "*://*.123684.com/*",
+    "*://*.123865.com/*",
+    "*://*.123912.com/*",
+    "*://*.115.com/*",
+    "*://*.115cdn.com/*",
+    "*://*.anxia.com/*",
+    "*://*.139.com/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "netdisk_headers",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content_moepans.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://pan.quark.cn/s/*",
+        "*://drive.uc.cn/s/*",
+        "*://pan.baidu.com/s/*",
+        "*://yun.baidu.com/s/*",
+        "*://www.alipan.com/s/*",
+        "*://www.aliyundrive.com/s/*",
+        "*://cloud.189.cn/*",
+        "*://pan.xunlei.com/s/*",
+        "*://*.123pan.com/s/*",
+        "*://*.123pan.cn/s/*",
+        "*://*.123684.com/s/*",
+        "*://*.123865.com/s/*",
+        "*://*.123912.com/s/*",
+        "*://*.115.com/s/*",
+        "*://*.115cdn.com/s/*",
+        "*://*.anxia.com/s/*",
+        "*://yun.139.com/shareweb/*",
+        "*://*.123pan.cn/123pan/*",
+        "*://*.123pan.com/123pan/*"
+      ],
+      "js": [
+        "content_netdisk.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
