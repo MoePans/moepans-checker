@@ -6,7 +6,7 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      width: 380px;
+      width: 390px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: #0f172a;
       color: #e2e8f0;
@@ -33,7 +33,6 @@
     .stat-num { font-size: 15px; font-weight: 600; font-family: ui-monospace, monospace; }
     .ok { color: #34d399; }
     .dead { color: #fbbf24; }
-    .uncertain { color: #94a3b8; }
     .stat-label { font-size: 11px; color: #94a3b8; margin-top: 2px; }
     .log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
     .log-actions { display: flex; gap: 6px; }
@@ -47,8 +46,22 @@
       cursor: pointer;
     }
     .btn:hover { background: #334155; color: #fff; }
+    .tree-meta { font-size: 11px; color: #94a3b8; margin-bottom: 6px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .tree-list {
+      max-height: 120px;
+      overflow-y: auto;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 5px 7px;
+      font-size: 11px;
+    }
+    .tree-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid #1e293b; }
+    .tree-item:last-child { border-bottom: none; }
+    .tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e2e8f0; }
+    .tree-size { color: #64748b; font-family: ui-monospace, monospace; flex-shrink: 0; font-size: 10.5px; }
     .log-list {
-      max-height: 210px;
+      max-height: 170px;
       overflow-y: auto;
       background: #0f172a;
       border: 1px solid #334155;
@@ -76,13 +89,13 @@
     .badge-dead { background: #78350f; color: #fbbf24; }
     .badge-uncertain { background: #334155; color: #cbd5e1; }
     .muted { color: #64748b; }
-    .empty { color: #64748b; text-align: center; padding: 18px 0; }
+    .empty { color: #64748b; text-align: center; padding: 14px 0; }
   </style>
 </head>
 <body>
   <div class="header">
     <div class="title">MoePans 测活助手</div>
-    <span class="ver">v1.1.0</span>
+    <span class="ver">v1.2.0</span>
   </div>
 
   <div class="card">
@@ -113,6 +126,14 @@
         <div class="stat-label">累计发现失效</div>
       </div>
     </div>
+  </div>
+
+  <div class="card" id="previewCard" style="display:none;">
+    <div class="log-header">
+      <div class="label" id="previewTitle">最近采样目录预览</div>
+    </div>
+    <div class="tree-meta" id="previewMeta"></div>
+    <div class="tree-list" id="previewList"></div>
   </div>
 
   <div class="card">

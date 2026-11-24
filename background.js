@@ -100,6 +100,77 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
   }
 }
 
+// 通用多级目录递归采样器（最多展开 3 层、最多 8 次子目录请求、最多 80 项，避免触发网盘限流）
+async function collectMultiLevelTree(rootItems, fetchChildrenFn, maxDepth = 3, maxSubReqs = 8, maxItems = 80) {
+  const result = [];
+  const queue = [];
+  let subReqs = 0;
+
+  for (const raw of (rootItems || [])) {
+    if (result.length >= maxItems) break;
+    const node = {
+      name: String(raw.name || "").trim(),
+      path: String(raw.name || "").trim(),
+      depth: 0,
+      is_dir: Boolean(raw.is_dir),
+      size: Number(raw.size || 0)
+    };
+    if (!node.name) continue;
+    result.push(node);
+    if (node.is_dir && raw.id && maxDepth > 0) {
+      queue.push({ id: raw.id, parentPath: node.path, depth: 1, insertAfterIdx: result.length - 1 });
+    }
+  }
+
+  // BFS 逐层展开子目录并按层级顺序整理
+  const childrenByParent = new Map();
+  while (queue.length > 0 && subReqs < maxSubReqs && result.length < maxItems) {
+    const cur = queue.shift();
+    if (!cur || cur.depth > maxDepth) continue;
+    subReqs++;
+    let kids = [];
+    try {
+      kids = await fetchChildrenFn(cur.id);
+    } catch {
+      kids = [];
+    }
+    const list = [];
+    for (const raw of (kids || [])) {
+      if (result.length + list.length >= maxItems) break;
+      const nm = String(raw.name || "").trim();
+      if (!nm) continue;
+      const p = `${cur.parentPath}/${nm}`;
+      const node = {
+        name: nm,
+        path: p,
+        depth: cur.depth,
+        is_dir: Boolean(raw.is_dir),
+        size: Number(raw.size || 0)
+      };
+      list.push(node);
+      if (node.is_dir && raw.id && cur.depth < maxDepth) {
+        queue.push({ id: raw.id, parentPath: p, depth: cur.depth + 1 });
+      }
+    }
+    childrenByParent.set(cur.parentPath, list);
+  }
+
+  // 按深度优先顺序拼装成天然有序的树形列表
+  const ordered = [];
+  function emitWithKids(nodes) {
+    for (const n of nodes) {
+      if (ordered.length >= maxItems) break;
+      ordered.push(n);
+      const kids = childrenByParent.get(n.path);
+      if (kids && kids.length > 0) emitWithKids(kids);
+    }
+  }
+  emitWithKids(result);
+
+  const totalSize = ordered.reduce((acc, x) => acc + (x.is_dir ? 0 : (Number(x.size) || 0)), 0);
+  return { fileTree: ordered, totalSize };
+}
+
 async function checkQuarkOrUc(apiBase, prCode, shareId, passcode = "", shareUrl = "") {
   if (!shareId) return { result: "uncertain", rawCode: "no_id", httpStatus: 0, requestUrl: "", message: "未解析出分享码" };
   const tokenUrl = `${apiBase}/1/clouddrive/share/sharepage/token?pr=${encodeURIComponent(prCode)}&fr=pc&uc_param_str=`;
@@ -187,14 +258,28 @@ async function checkQuarkOrUc(apiBase, prCode, shareId, passcode = "", shareUrl 
     if (list.length === 0) {
       return { result: "dead", rawCode: "empty_list", httpStatus: dHttp, requestUrl: detailUrl, message: "分享文件列表为空或已失效" };
     }
-    const fileTree = list.slice(0, 30).map((it) => ({
+    const rootRaw = list.slice(0, 30).map((it) => ({
+      id: String(it?.fid || ""),
       name: String(it?.file_name || "").trim(),
       is_dir: Boolean(it?.dir),
       size: Number(it?.size || 0)
     })).filter((x) => x.name);
-    const totalSize = Number(shareMeta.size || 0) || fileTree.reduce((acc, x) => acc + (x.size || 0), 0);
+    const { fileTree, totalSize: calcSize } = await collectMultiLevelTree(rootRaw, async (fid) => {
+      const subQs = new URLSearchParams({
+        pr: prCode, fr: "pc", uc_param_str: "", pwd_id: shareId, stoken, pdir_fid: fid,
+        force: "0", _page: "1", _size: "20", _fetch_banner: "0", _fetch_share: "0", _fetch_total: "0"
+      });
+      const r = await fetchWithTimeout(`${apiBase}/1/clouddrive/share/sharepage/detail?${subQs.toString()}`, {
+        headers: { "Accept": "application/json, text/plain, */*" }
+      });
+      if (!r.ok) return [];
+      const j = await r.json().catch(() => null);
+      const arr = Array.isArray(j?.data?.list) ? j.data.list : [];
+      return arr.map((it) => ({ id: String(it?.fid || ""), name: it?.file_name, is_dir: Boolean(it?.dir), size: Number(it?.size || 0) }));
+    });
+    const totalSize = Number(shareMeta.size || 0) || calcSize;
     const shareAuthor = String(shareMeta?.author?.nickname || dData?.data?.author?.nickname || data?.data?.author?.nickname || "").trim();
-    return { result: "ok", rawCode: "0", httpStatus: dHttp, requestUrl: detailUrl, message: `链接有效(${list.length}项)`, fileTree, totalSize, shareAuthor };
+    return { result: "ok", rawCode: "0", httpStatus: dHttp, requestUrl: detailUrl, message: `链接有效(${fileTree.length}项)`, fileTree, totalSize, shareAuthor };
   } catch (err) {
     return { result: "uncertain", rawCode: "network", httpStatus: 0, requestUrl: tokenUrl, message: `请求异常: ${err?.message || "超时"}` };
   }
@@ -279,14 +364,27 @@ async function checkAliyun(shareId, shareCode = "") {
       if (validItems.length === 0) {
         return { result: "dead", rawCode: items.length > 0 ? "punished" : "empty_root", httpStatus: listHttp, requestUrl: listUrl, message: items.length > 0 ? "分享文件已被违规屏蔽" : "分享目录为空或源文件已删除" };
       }
-      const fileTree = validItems.slice(0, 30).map((it) => ({
+      const rootRaw = validItems.slice(0, 30).map((it) => ({
+        id: String(it?.file_id || ""),
         name: String(it?.name || "").trim(),
         is_dir: String(it?.type || "").toLowerCase() === "folder",
         size: Number(it?.size || 0)
       })).filter((x) => x.name);
-      const totalSize = fileTree.reduce((acc, x) => acc + (x.size || 0), 0);
+      const { fileTree, totalSize } = await collectMultiLevelTree(rootRaw, async (parentFid) => {
+        const r = await fetchWithTimeout(listUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-share-token": tokData.share_token },
+          body: JSON.stringify({ share_id: shareId, parent_file_id: parentFid, limit: 20 })
+        });
+        if (!r.ok) return [];
+        const j = await r.json().catch(() => null);
+        const arr = Array.isArray(j?.items) ? j.items : [];
+        return arr.filter((it) => Number(it?.punish_flag || 0) !== 2).map((it) => ({
+          id: String(it?.file_id || ""), name: it?.name, is_dir: String(it?.type || "").toLowerCase() === "folder", size: Number(it?.size || 0)
+        }));
+      });
       const shareAuthor = String(data?.creator_name || data?.creator_id || "").trim();
-      return { result: "ok", rawCode: "200", httpStatus: listHttp, requestUrl: listUrl, message: `链接有效(${validItems.length}项)`, fileTree, totalSize, shareAuthor };
+      return { result: "ok", rawCode: "200", httpStatus: listHttp, requestUrl: listUrl, message: `链接有效(${fileTree.length}项)`, fileTree, totalSize, shareAuthor };
     }
     const tCode = String(tokData?.code || `http_${tokHttp}`);
     const tMsg = String(tokData?.message || "");
@@ -389,12 +487,25 @@ async function checkPan123(shareId, shareCode = "", shareUrl = "") {
     }
     if (code === 0 || code === 200) {
       const infoList = Array.isArray(data?.data?.InfoList) ? data.data.InfoList : [];
-      const fileTree = infoList.slice(0, 30).map((it) => ({
+      const rootRaw = infoList.slice(0, 30).map((it) => ({
+        id: String(it?.FileId || ""),
         name: String(it?.FileName || "").trim(),
         is_dir: Number(it?.Type) === 1,
         size: Number(it?.Size || 0)
       })).filter((x) => x.name);
-      const totalSize = fileTree.reduce((acc, x) => acc + (x.size || 0), 0);
+      const { fileTree, totalSize } = await collectMultiLevelTree(rootRaw, async (parentFileId) => {
+        const subQs = new URLSearchParams({
+          limit: "20", next: "0", orderBy: "file_name", orderDirection: "asc",
+          parentFileId, shareKey: shareId, SharePwd: pwd, Page: "1"
+        });
+        const r = await fetchWithTimeout(`https://yun.123pan.com/b/api/share/get?${subQs.toString()}`, {
+          headers: { "Accept": "application/json, text/plain, */*", "Platform": "web" }
+        });
+        if (!r.ok) return [];
+        const j = await r.json().catch(() => null);
+        const arr = Array.isArray(j?.data?.InfoList) ? j.data.InfoList : [];
+        return arr.map((it) => ({ id: String(it?.FileId || ""), name: it?.FileName, is_dir: Number(it?.Type) === 1, size: Number(it?.Size || 0) }));
+      });
       const shareAuthor = String(data?.data?.ShareUser || data?.data?.UserName || "").trim();
       return { result: "ok", rawCode: String(code), httpStatus, requestUrl: reqUrl, message: fileTree.length ? `链接有效(${fileTree.length}项)` : "链接有效", fileTree, totalSize, shareAuthor };
     }
@@ -435,12 +546,23 @@ async function checkPan115(shareId, shareCode = "", shareUrl = "") {
     const data = await res.json();
     if (data?.state && data?.data) {
       const list = Array.isArray(data.data.list) ? data.data.list : [];
-      const fileTree = list.slice(0, 30).map((it) => ({
+      const rootRaw = list.slice(0, 30).map((it) => ({
+        id: String(it?.cid || ""),
         name: String(it?.n || "").trim(),
         is_dir: !it?.fid && Boolean(it?.cid),
         size: Number(it?.s || 0)
       })).filter((x) => x.name);
-      const totalSize = Number(data?.data?.shareinfo?.file_size || 0) || fileTree.reduce((acc, x) => acc + (x.size || 0), 0);
+      const { fileTree, totalSize: calcSize } = await collectMultiLevelTree(rootRaw, async (cid) => {
+        const subQs = new URLSearchParams({ share_code: shareId, receive_code: pwd, offset: "0", limit: "20", cid });
+        const r = await fetchWithTimeout(`https://webapi.115.com/share/snap?${subQs.toString()}`, {
+          headers: { "Accept": "application/json, text/javascript, */*; q=0.01" }
+        });
+        if (!r.ok) return [];
+        const j = await r.json().catch(() => null);
+        const arr = Array.isArray(j?.data?.list) ? j.data.list : [];
+        return arr.map((it) => ({ id: String(it?.cid || ""), name: it?.n, is_dir: !it?.fid && Boolean(it?.cid), size: Number(it?.s || 0) }));
+      });
+      const totalSize = Number(data?.data?.shareinfo?.file_size || 0) || calcSize;
       const shareAuthor = String(data?.data?.userinfo?.user_name || "").trim();
       return { result: "ok", rawCode: "200", httpStatus, requestUrl: reqUrl, message: fileTree.length ? `链接有效(${fileTree.length}项)` : "链接有效", fileTree, totalSize, shareAuthor };
     }
@@ -729,13 +851,29 @@ async function checkXunlei(shareId, passCode = "", shareUrl = "") {
     }
     const files = Array.isArray(data?.files) ? data.files : [];
     if (stStr === "OK" || st === 0 || st === 1 || files.length > 0 || data?.title) {
-      const fileTree = files.slice(0, 30).map((it) => ({
+      const rootRaw = files.slice(0, 30).map((it) => ({
+        id: String(it?.id || ""),
         name: String(it?.name || "").trim(),
         is_dir: String(it?.kind || "").includes("folder"),
         size: Number(it?.size || 0)
       })).filter((x) => x.name);
-      const totalSize = fileTree.reduce((acc, x) => acc + (x.size || 0), 0);
-      const shareAuthor = String(data?.user_info?.nick_name || data?.share?.nick_name || "").trim();
+      const { fileTree, totalSize } = await collectMultiLevelTree(rootRaw, async (parentId) => {
+        const subQs = new URLSearchParams({ share_id: shareId, parent_id: parentId, limit: "20" });
+        if (finalCode) subQs.set("pass_code", finalCode);
+        const hdrs = {
+          "Accept": "application/json, text/plain, */*",
+          "x-client-id": XL_ANDROID_CLIENT_ID,
+          "x-client-version": XL_ANDROID_CLIENT_VERSION,
+          "x-device-id": devId
+        };
+        if (capToken) hdrs["x-captcha-token"] = capToken;
+        const r = await fetchWithTimeout(`https://api-pan.xunlei.com/drive/v1/share?${subQs.toString()}`, { method: "GET", headers: hdrs });
+        if (!r.ok) return [];
+        const j = await r.json().catch(() => null);
+        const arr = Array.isArray(j?.files) ? j.files : [];
+        return arr.map((it) => ({ id: String(it?.id || ""), name: it?.name, is_dir: String(it?.kind || "").includes("folder"), size: Number(it?.size || 0) }));
+      });
+      const shareAuthor = String(data?.user_info?.nick_name || data?.user_info?.name || data?.user_info?.nickname || data?.share?.nick_name || "").trim();
       return { result: "ok", rawCode: stStr || "200", httpStatus, requestUrl: reqUrl, message: fileTree.length ? `链接有效(${fileTree.length}项)` : "链接有效", fileTree, totalSize, shareAuthor };
     }
     return { result: "uncertain", rawCode: stStr || "unknown", httpStatus, requestUrl: reqUrl, message: stText || "迅雷返回状态不明确" };
@@ -837,6 +975,22 @@ async function runTasksWithLimit(origin, tasks, tabId) {
       if (checkRes.result === "ok") await bumpStat("activeOk");
       else if (checkRes.result === "dead") await bumpStat("activeDead");
 
+      const treeArr = Array.isArray(checkRes.fileTree) ? checkRes.fileTree : [];
+      const authorStr = checkRes.shareAuthor || "";
+      const totalBytes = Number(checkRes.totalSize || 0);
+      if (treeArr.length > 0 || authorStr || totalBytes > 0) {
+        chrome.storage.local.set({
+          lastPreview: {
+            slug: task.slug || "",
+            panType: task.pan_type || "",
+            shareUrl: task.share_link || "",
+            shareAuthor: authorStr,
+            totalSize: totalBytes,
+            fileTree: treeArr,
+            updatedAt: new Date().toISOString()
+          }
+        }).catch(() => {});
+      }
       await appendLog({
         mode: "active",
         panType: task.pan_type || "",
@@ -847,6 +1001,9 @@ async function runTasksWithLimit(origin, tasks, tabId) {
         result: checkRes.result,
         rawCode: checkRes.rawCode || "",
         message: checkRes.message || "",
+        shareAuthor: authorStr,
+        totalSize: totalBytes,
+        treeCount: treeArr.length,
         serverAccepted: Boolean(serverRes?.accepted),
         serverStatus: serverRes?.alive_status || serverRes?.reason || ""
       });
@@ -877,6 +1034,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg.action === "GET_SETTINGS") {
     getSettings().then(sendResponse);
+    return true;
+  }
+
+  if (msg.action === "GET_LAST_PREVIEW") {
+    chrome.storage.local.get(["lastPreview"]).then((d) => sendResponse(d.lastPreview || null));
     return true;
   }
 

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MoePans 测活助手",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "为 MoePans 提供双轨客户端网盘测活（默认被动读页零额外请求 + 可选租约主动测活）",
   "icons": {
     "16": "icons/icon16.png",
