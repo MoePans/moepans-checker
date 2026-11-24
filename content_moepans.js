@@ -23,7 +23,7 @@
       window.postMessage(
         {
           type: "MOEPANS_EXTENSION_READY",
-          version: "1.0.7",
+          version: "1.1.0",
           passiveEnabled: Boolean(cfg.passiveEnabled),
           activeEnabled: Boolean(cfg.activeEnabled)
         },
@@ -66,7 +66,7 @@
           window.postMessage(
             {
               type: "MOEPANS_EXTENSION_READY",
-              version: "1.0.7",
+              version: "1.1.0",
               passiveEnabled: Boolean(cfg.passiveEnabled),
               activeEnabled: Boolean(cfg.activeEnabled)
             },

@@ -187,7 +187,14 @@ async function checkQuarkOrUc(apiBase, prCode, shareId, passcode = "", shareUrl 
     if (list.length === 0) {
       return { result: "dead", rawCode: "empty_list", httpStatus: dHttp, requestUrl: detailUrl, message: "分享文件列表为空或已失效" };
     }
-    return { result: "ok", rawCode: "0", httpStatus: dHttp, requestUrl: detailUrl, message: `链接有效(${list.length}项)` };
+    const fileTree = list.slice(0, 30).map((it) => ({
+      name: String(it?.file_name || "").trim(),
+      is_dir: Boolean(it?.dir),
+      size: Number(it?.size || 0)
+    })).filter((x) => x.name);
+    const totalSize = Number(shareMeta.size || 0) || fileTree.reduce((acc, x) => acc + (x.size || 0), 0);
+    const shareAuthor = String(shareMeta?.author?.nickname || dData?.data?.author?.nickname || data?.data?.author?.nickname || "").trim();
+    return { result: "ok", rawCode: "0", httpStatus: dHttp, requestUrl: detailUrl, message: `链接有效(${list.length}项)`, fileTree, totalSize, shareAuthor };
   } catch (err) {
     return { result: "uncertain", rawCode: "network", httpStatus: 0, requestUrl: tokenUrl, message: `请求异常: ${err?.message || "超时"}` };
   }
@@ -272,7 +279,14 @@ async function checkAliyun(shareId, shareCode = "") {
       if (validItems.length === 0) {
         return { result: "dead", rawCode: items.length > 0 ? "punished" : "empty_root", httpStatus: listHttp, requestUrl: listUrl, message: items.length > 0 ? "分享文件已被违规屏蔽" : "分享目录为空或源文件已删除" };
       }
-      return { result: "ok", rawCode: "200", httpStatus: listHttp, requestUrl: listUrl, message: `链接有效(${validItems.length}项)` };
+      const fileTree = validItems.slice(0, 30).map((it) => ({
+        name: String(it?.name || "").trim(),
+        is_dir: String(it?.type || "").toLowerCase() === "folder",
+        size: Number(it?.size || 0)
+      })).filter((x) => x.name);
+      const totalSize = fileTree.reduce((acc, x) => acc + (x.size || 0), 0);
+      const shareAuthor = String(data?.creator_name || data?.creator_id || "").trim();
+      return { result: "ok", rawCode: "200", httpStatus: listHttp, requestUrl: listUrl, message: `链接有效(${validItems.length}项)`, fileTree, totalSize, shareAuthor };
     }
     const tCode = String(tokData?.code || `http_${tokHttp}`);
     const tMsg = String(tokData?.message || "");
@@ -306,7 +320,26 @@ async function checkTianyi(shareId) {
       return { result: "dead", rawCode: "189_dead", httpStatus, requestUrl: reqUrl, message: "天翼分享已失效或取消" };
     }
     if (/shareId|fileName|needAccessCode/i.test(text)) {
-      return { result: "ok", rawCode: "200", httpStatus, requestUrl: reqUrl, message: "链接有效" };
+      let fileTree = [];
+      let totalSize = 0;
+      let shareAuthor = "";
+      try {
+        const j = JSON.parse(text);
+        if (j?.fileName) {
+          totalSize = Number(j.fileSize || 0);
+          fileTree = [{ name: String(j.fileName).trim(), is_dir: Boolean(j.isFolder), size: totalSize }];
+        }
+        shareAuthor = String(j?.creatorNickname || j?.userName || "").trim();
+      } catch {
+        const mn = text.match(/<fileName>([^<]+)<\/fileName>/i);
+        const ms = text.match(/<fileSize>(\d+)<\/fileSize>/i);
+        const mf = text.match(/<isFolder>(true|false)<\/isFolder>/i);
+        if (mn) {
+          totalSize = ms ? Number(ms[1]) : 0;
+          fileTree = [{ name: mn[1].trim(), is_dir: mf ? mf[1].toLowerCase() === "true" : false, size: totalSize }];
+        }
+      }
+      return { result: "ok", rawCode: "200", httpStatus, requestUrl: reqUrl, message: "链接有效", fileTree, totalSize, shareAuthor };
     }
     return { result: "uncertain", rawCode: "unknown", httpStatus, requestUrl: reqUrl, message: "状态不确定" };
   } catch (err) {
@@ -355,7 +388,15 @@ async function checkPan123(shareId, shareCode = "", shareUrl = "") {
       return { result: "dead", rawCode: String(code), httpStatus, requestUrl: reqUrl, message: msg || (code === 5103 ? "分享已被取消" : "123分享已失效") };
     }
     if (code === 0 || code === 200) {
-      return { result: "ok", rawCode: String(code), httpStatus, requestUrl: reqUrl, message: "链接有效" };
+      const infoList = Array.isArray(data?.data?.InfoList) ? data.data.InfoList : [];
+      const fileTree = infoList.slice(0, 30).map((it) => ({
+        name: String(it?.FileName || "").trim(),
+        is_dir: Number(it?.Type) === 1,
+        size: Number(it?.Size || 0)
+      })).filter((x) => x.name);
+      const totalSize = fileTree.reduce((acc, x) => acc + (x.size || 0), 0);
+      const shareAuthor = String(data?.data?.ShareUser || data?.data?.UserName || "").trim();
+      return { result: "ok", rawCode: String(code), httpStatus, requestUrl: reqUrl, message: fileTree.length ? `链接有效(${fileTree.length}项)` : "链接有效", fileTree, totalSize, shareAuthor };
     }
     if (code === 5113 || /提取码|密码/.test(msg)) {
       return { result: "ok", rawCode: String(code), httpStatus, requestUrl: reqUrl, message: "链接有效(需提取码)" };
@@ -393,7 +434,15 @@ async function checkPan115(shareId, shareCode = "", shareUrl = "") {
     }
     const data = await res.json();
     if (data?.state && data?.data) {
-      return { result: "ok", rawCode: "200", httpStatus, requestUrl: reqUrl, message: "链接有效" };
+      const list = Array.isArray(data.data.list) ? data.data.list : [];
+      const fileTree = list.slice(0, 30).map((it) => ({
+        name: String(it?.n || "").trim(),
+        is_dir: !it?.fid && Boolean(it?.cid),
+        size: Number(it?.s || 0)
+      })).filter((x) => x.name);
+      const totalSize = Number(data?.data?.shareinfo?.file_size || 0) || fileTree.reduce((acc, x) => acc + (x.size || 0), 0);
+      const shareAuthor = String(data?.data?.userinfo?.user_name || "").trim();
+      return { result: "ok", rawCode: "200", httpStatus, requestUrl: reqUrl, message: fileTree.length ? `链接有效(${fileTree.length}项)` : "链接有效", fileTree, totalSize, shareAuthor };
     }
     const errMsg = String(data?.error || data?.message || "");
     const errno = String(data?.errno || "");
@@ -680,7 +729,14 @@ async function checkXunlei(shareId, passCode = "", shareUrl = "") {
     }
     const files = Array.isArray(data?.files) ? data.files : [];
     if (stStr === "OK" || st === 0 || st === 1 || files.length > 0 || data?.title) {
-      return { result: "ok", rawCode: stStr || "200", httpStatus, requestUrl: reqUrl, message: "链接有效" };
+      const fileTree = files.slice(0, 30).map((it) => ({
+        name: String(it?.name || "").trim(),
+        is_dir: String(it?.kind || "").includes("folder"),
+        size: Number(it?.size || 0)
+      })).filter((x) => x.name);
+      const totalSize = fileTree.reduce((acc, x) => acc + (x.size || 0), 0);
+      const shareAuthor = String(data?.user_info?.nick_name || data?.share?.nick_name || "").trim();
+      return { result: "ok", rawCode: stStr || "200", httpStatus, requestUrl: reqUrl, message: fileTree.length ? `链接有效(${fileTree.length}项)` : "链接有效", fileTree, totalSize, shareAuthor };
     }
     return { result: "uncertain", rawCode: stStr || "unknown", httpStatus, requestUrl: reqUrl, message: stText || "迅雷返回状态不明确" };
   } catch (err) {
@@ -773,7 +829,10 @@ async function runTasksWithLimit(origin, tasks, tabId) {
         mode: "active",
         result: checkRes.result,
         raw_code: checkRes.rawCode || "",
-        message: checkRes.message || ""
+        message: checkRes.message || "",
+        file_tree: Array.isArray(checkRes.fileTree) ? checkRes.fileTree : [],
+        total_size: Number(checkRes.totalSize || 0) || null,
+        share_author: checkRes.shareAuthor || ""
       });
       if (checkRes.result === "ok") await bumpStat("activeOk");
       else if (checkRes.result === "dead") await bumpStat("activeDead");
