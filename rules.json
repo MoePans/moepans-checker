@@ -384,5 +384,137 @@
         "139.com"
       ]
     }
+  },
+  {
+    "id": 10,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://pan.baidu.com/"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://pan.baidu.com"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||pan.baidu.com/share/",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
+  },
+  {
+    "id": 11,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://pan.baidu.com/share/init"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://pan.baidu.com"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||pan.baidu.com/share/verify",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
+  },
+  {
+    "id": 12,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://yun.139.com/"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://yun.139.com"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||share-kd-njs.yun.139.com/yun-share/",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com"
+      ]
+    }
   }
 ]

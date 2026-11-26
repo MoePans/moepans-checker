@@ -14,12 +14,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentLogs = [];
   let currentSettings = null;
+  let justExpandedPath = "";
 
   function escapeHtml(s) {
     return String(s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  function formatSize(bytes) {
+  function formatSize(bytes, truncated = false) {
     const val = Number(bytes || 0);
     if (!val || val <= 0) return "";
     const units = ["B", "KB", "MB", "GB", "TB"];
@@ -29,7 +30,8 @@ document.addEventListener("DOMContentLoaded", () => {
       sz /= 1024;
       idx++;
     }
-    return idx >= 2 ? `${sz.toFixed(2)} ${units[idx]}` : `${Math.round(sz)} ${units[idx]}`;
+    const num = idx >= 2 ? sz.toFixed(2) : String(Math.round(sz));
+    return `${num}${truncated ? "+" : ""} ${units[idx]}`;
   }
 
   function renderSettings(cfg) {
@@ -52,12 +54,18 @@ document.addEventListener("DOMContentLoaded", () => {
     previewTitle.textContent = `最近采样目录预览 (${p.panType || "-"} #${p.slug || "-"})`;
     const metaParts = [];
     if (p.shareAuthor) metaParts.push(`分享者: ${escapeHtml(p.shareAuthor)}`);
-    if (p.totalSize > 0) metaParts.push(`大小: ${escapeHtml(formatSize(p.totalSize))}`);
-    metaParts.push(`共 ${items.length} 项`);
+    const isTrunc = Boolean(p.treeTruncated) || items.some((x) => x.is_dir && x.expanded === false);
+    if (p.totalSize > 0) metaParts.push(`大小: ${escapeHtml(formatSize(p.totalSize, isTrunc))}`);
+    metaParts.push(`共 ${items.length}${isTrunc ? "+" : ""} 项`);
     previewMeta.innerHTML = metaParts.map((m) => `<span>${m}</span>`).join("");
     if (items.length === 0) {
       previewList.innerHTML = '<div class="empty">无根目录列表</div>';
     } else {
+      const prevOpenState = new Map();
+      previewList.querySelectorAll("details.tree-folder[data-path]").forEach((el) => {
+        if (el.dataset.path) prevOpenState.set(el.dataset.path, el.open);
+      });
+      const prevScrollTop = previewList.scrollTop;
       // 构建嵌套树结构，支持任意层级展开/收缩
       const roots = [];
       const stack = [];
@@ -73,28 +81,73 @@ document.addEventListener("DOMContentLoaded", () => {
       function renderNodes(nodes) {
         return nodes.map((n) => {
           const sz = formatSize(n.size);
+          const rawPath = n.path || n.name;
           if (n.is_dir && n.children.length > 0) {
-            return `<details class="tree-folder" open>
-              <summary title="${escapeHtml(n.path || n.name)}">
+            const moreBtn = (n.has_more && n.node_id)
+              ? `<button type="button" class="btn popup-expand-btn" style="width:100%;margin-top:3px;text-align:left;color:#34d399;" data-path="${escapeHtml(rawPath)}" data-id="${escapeHtml(n.node_id)}" data-depth="${n.depth}" data-page="${Number(n.next_page || 2)}">加载更多...</button>`
+              : "";
+            const isOpen = rawPath === justExpandedPath ? true : (prevOpenState.has(rawPath) ? Boolean(prevOpenState.get(rawPath)) : false);
+            return `<details class="tree-folder" data-path="${escapeHtml(rawPath)}" ${isOpen ? "open" : ""}>
+              <summary title="${escapeHtml(rawPath)}">
                 <span class="tree-name"><span class="chev">▶</span>📁 ${escapeHtml(n.name)}</span>
-                <span class="tree-size">${n.children.length}项</span>
+                <span class="tree-size">${n.children.length}${n.has_more ? "+" : ""}项</span>
               </summary>
-              <div class="tree-children">${renderNodes(n.children)}</div>
+              <div class="tree-children">${renderNodes(n.children)}${moreBtn}</div>
             </details>`;
           }
+          if (n.is_dir && n.expanded === false && n.node_id) {
+            return `<div class="tree-item popup-expand-btn" style="cursor:pointer;" title="点击展开加载：${escapeHtml(rawPath)}" data-path="${escapeHtml(rawPath)}" data-id="${escapeHtml(n.node_id)}" data-depth="${n.depth}" data-page="1">
+              <span class="tree-name"><span style="color:#94a3b8;margin-right:3px;">▶</span>📁 ${escapeHtml(n.name)}</span>
+              <span class="tree-size" style="color:#34d399;">展开</span>
+            </div>`;
+          }
           const icon = n.is_dir ? "📁" : "📄";
-          return `<div class="tree-item"><span class="tree-name" title="${escapeHtml(n.path || n.name)}">${icon} ${escapeHtml(n.name)}</span>${sz ? `<span class="tree-size">${escapeHtml(sz)}</span>` : ""}</div>`;
+          return `<div class="tree-item"><span class="tree-name" title="${escapeHtml(rawPath)}">${icon} ${escapeHtml(n.name)}</span>${sz ? `<span class="tree-size">${escapeHtml(sz)}</span>` : ""}</div>`;
         }).join("");
       }
       previewList.innerHTML = renderNodes(roots);
+      justExpandedPath = "";
+      if (prevOpenState.size > 0) previewList.scrollTop = prevScrollTop;
+      previewList.querySelectorAll(".popup-expand-btn").forEach((el) => {
+        el.addEventListener("click", () => {
+          if (el.dataset.loading === "1") return;
+          el.dataset.loading = "1";
+          const sizeEl = el.querySelector(".tree-size");
+          if (sizeEl) sizeEl.textContent = "加载中...";
+          else el.textContent = "正在加载...";
+          justExpandedPath = el.dataset.path || "";
+          chrome.runtime.sendMessage(
+            {
+              action: "EXPAND_FOLDER",
+              origin: p.origin || "",
+              slug: p.slug || "",
+              panType: p.panType || "",
+              shareUrl: p.shareUrl || "",
+              shareCode: p.shareCode || "",
+              folderPath: el.dataset.path || "",
+              folderId: el.dataset.id || "",
+              depth: Number(el.dataset.depth || 0),
+              page: Number(el.dataset.page || 1)
+            },
+            () => {
+              chrome.runtime.sendMessage({ action: "GET_LAST_PREVIEW" }, renderPreview);
+            }
+          );
+        });
+      });
       const toggleBtn = document.getElementById("toggleTreeBtn");
       if (toggleBtn) {
-        let allOpen = true;
-        toggleBtn.textContent = "全部收起";
+        const syncBtn = () => {
+          const folders = Array.from(previewList.querySelectorAll("details.tree-folder"));
+          const anyClosed = folders.some((d) => !d.open);
+          toggleBtn.textContent = anyClosed ? "全部展开" : "全部收起";
+        };
+        syncBtn();
         toggleBtn.onclick = () => {
-          allOpen = !allOpen;
-          previewList.querySelectorAll("details.tree-folder").forEach((d) => { d.open = allOpen; });
-          toggleBtn.textContent = allOpen ? "全部收起" : "全部展开";
+          const folders = Array.from(previewList.querySelectorAll("details.tree-folder"));
+          const shouldOpen = folders.some((d) => !d.open);
+          folders.forEach((d) => { d.open = shouldOpen; });
+          syncBtn();
         };
       }
     }

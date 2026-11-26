@@ -23,7 +23,7 @@
       window.postMessage(
         {
           type: "MOEPANS_EXTENSION_READY",
-          version: "1.2.0",
+          version: "1.2.13",
           passiveEnabled: Boolean(cfg.passiveEnabled),
           activeEnabled: Boolean(cfg.activeEnabled)
         },
@@ -55,6 +55,19 @@
         origin: window.location.origin,
         tasks: msg.tasks || []
       });
+    } else if (msg.type === "MOEPANS_EXPAND_FOLDER") {
+      safeSendMessage({
+        action: "EXPAND_FOLDER",
+        origin: window.location.origin,
+        slug: msg.slug,
+        panType: msg.panType,
+        shareUrl: msg.shareUrl,
+        shareCode: msg.shareCode,
+        folderPath: msg.folderPath,
+        folderId: msg.folderId,
+        depth: msg.depth,
+        page: msg.page || 1
+      });
     } else if (msg.type === "MOEPANS_SET_EXTENSION_CONFIG") {
       safeSendMessage(
         {
@@ -66,7 +79,7 @@
           window.postMessage(
             {
               type: "MOEPANS_EXTENSION_READY",
-              version: "1.2.0",
+              version: "1.2.13",
               passiveEnabled: Boolean(cfg.passiveEnabled),
               activeEnabled: Boolean(cfg.activeEnabled)
             },
@@ -81,13 +94,9 @@
   try {
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg && msg.action === "MOEPANS_STATUS_UPDATED" && msg.payload) {
-        window.postMessage(
-          {
-            type: "MOEPANS_CHECK_RESULT",
-            payload: msg.payload
-          },
-          "*"
-        );
+        window.postMessage({ type: "MOEPANS_CHECK_RESULT", payload: msg.payload }, "*");
+      } else if (msg && msg.action === "MOEPANS_FOLDER_EXPANDED" && msg.payload) {
+        window.postMessage({ type: "MOEPANS_FOLDER_EXPANDED", payload: msg.payload }, "*");
       }
     });
   } catch {}
