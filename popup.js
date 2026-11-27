@@ -1,3 +1,4 @@
+(() => { const el = document.getElementById("extVer"); try { const v = chrome?.runtime?.getManifest?.()?.version; if (el && v) el.textContent = "v" + v; } catch {} })();
 document.addEventListener("DOMContentLoaded", () => {
   const passiveToggle = document.getElementById("passiveToggle");
   const activeToggle = document.getElementById("activeToggle");
@@ -55,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const metaParts = [];
     if (p.shareAuthor) metaParts.push(`分享者: ${escapeHtml(p.shareAuthor)}`);
     const isTrunc = Boolean(p.treeTruncated) || items.some((x) => x.is_dir && x.expanded === false);
-    if (p.totalSize > 0) metaParts.push(`大小: ${escapeHtml(formatSize(p.totalSize, isTrunc))}`);
+    if (p.totalSize > 0) metaParts.push(`大小: ${escapeHtml(formatSize(p.totalSize, isTrunc && !p.sizeExact))}`);
     metaParts.push(`共 ${items.length}${isTrunc ? "+" : ""} 项`);
     previewMeta.innerHTML = metaParts.map((m) => `<span>${m}</span>`).join("");
     if (items.length === 0) {

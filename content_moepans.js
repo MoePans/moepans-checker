@@ -27,7 +27,7 @@
           passiveEnabled: Boolean(cfg.passiveEnabled),
           activeEnabled: Boolean(cfg.activeEnabled)
         },
-        "*"
+        window.location.origin
       );
     });
   }
@@ -83,7 +83,7 @@
               passiveEnabled: Boolean(cfg.passiveEnabled),
               activeEnabled: Boolean(cfg.activeEnabled)
             },
-            "*"
+            window.location.origin
           );
         }
       );
@@ -94,9 +94,9 @@
   try {
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg && msg.action === "MOEPANS_STATUS_UPDATED" && msg.payload) {
-        window.postMessage({ type: "MOEPANS_CHECK_RESULT", payload: msg.payload }, "*");
+        window.postMessage({ type: "MOEPANS_CHECK_RESULT", payload: msg.payload }, window.location.origin);
       } else if (msg && msg.action === "MOEPANS_FOLDER_EXPANDED" && msg.payload) {
-        window.postMessage({ type: "MOEPANS_FOLDER_EXPANDED", payload: msg.payload }, "*");
+        window.postMessage({ type: "MOEPANS_FOLDER_EXPANDED", payload: msg.payload }, window.location.origin);
       }
     });
   } catch {}

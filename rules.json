@@ -39,7 +39,8 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
       ]
     }
   },
@@ -83,7 +84,8 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
       ]
     }
   },
@@ -127,7 +129,8 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
       ]
     }
   },
@@ -166,7 +169,8 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
       ]
     }
   },
@@ -205,7 +209,8 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
       ]
     }
   },
@@ -249,7 +254,8 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
       ]
     }
   },
@@ -293,7 +299,8 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
       ]
     }
   },
@@ -337,7 +344,8 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
       ]
     }
   },
@@ -381,7 +389,8 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
       ]
     }
   },
@@ -425,7 +434,8 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
       ]
     }
   },
@@ -469,7 +479,8 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
       ]
     }
   },
@@ -513,7 +524,53 @@
         "123684.com",
         "123865.com",
         "123912.com",
-        "139.com"
+        "139.com",
+        "guangyapan.com"
+      ]
+    }
+  },
+  {
+    "id": 13,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        {
+          "header": "Referer",
+          "operation": "set",
+          "value": "https://www.guangyapan.com/"
+        },
+        {
+          "header": "Origin",
+          "operation": "set",
+          "value": "https://www.guangyapan.com"
+        }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||api.guangyapan.com/",
+      "resourceTypes": [
+        "xmlhttprequest",
+        "other"
+      ],
+      "excludedInitiatorDomains": [
+        "aliyundrive.com",
+        "alipan.com",
+        "quark.cn",
+        "uc.cn",
+        "baidu.com",
+        "189.cn",
+        "xunlei.com",
+        "115.com",
+        "115cdn.com",
+        "anxia.com",
+        "123pan.com",
+        "123pan.cn",
+        "123684.com",
+        "123865.com",
+        "123912.com",
+        "139.com",
+        "guangyapan.com"
       ]
     }
   }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "MoePans 测活助手",
-  "version": "1.2.13",
+  "version": "1.2.19",
   "description": "为 MoePans 提供双轨客户端网盘测活（默认被动读页零额外请求 + 可选租约主动测活）",
   "icons": {
     "16": "icons/icon16.png",
@@ -24,6 +24,7 @@
     "*://*.baidu.com/*",
     "*://*.189.cn/*",
     "*://*.xunlei.com/*",
+    "*://*.guangyapan.com/*",
     "*://*.123pan.com/*",
     "*://*.123pan.cn/*",
     "*://*.123684.com/*",
@@ -81,7 +82,8 @@
         "*://*.anxia.com/s/*",
         "*://yun.139.com/shareweb/*",
         "*://*.123pan.cn/123pan/*",
-        "*://*.123pan.com/123pan/*"
+        "*://*.123pan.com/123pan/*",
+        "*://www.guangyapan.com/s/*"
       ],
       "js": [
         "content_netdisk.js"

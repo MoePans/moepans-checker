@@ -132,3 +132,16 @@
 ### 扩展 / 网页 ⇄ MoePans 后端 HTTP API
 * `POST /api/client/check/claim`：提交 `{ slugs, max_tasks, force }` 领取 30 秒原子租约。
 * `POST /api/client/check/report`：提交 `{ slug, share_url, lease_token, mode, result, raw_code, message, file_tree, total_size, share_author }` 回传测活结果、根目录采样列表、分享总字节数与分享者昵称。
+
+
+## 6. v1.2.2–v1.2.13 协议升级与懒加载分页设计
+
+### 6.1 百度 / 天翼 / 移动三家网盘深度接入
+* **百度网盘**：改用网页端 `POST /share/verify`（提取 `randsk` 解码为 `sekey`）+ `GET /share/list`（根目录 `shorturl + root=1`，子目录切换 `uk + shareid + dir` 并兼容 `sharelink0-` 前缀重试）；`9019`、`2`、`-6`、`-62` 等风控或会话异常统一回退 HTML 页面探测，绝不误判为失效。
+* **天翼云盘**：在 `getShareInfoByCodeV2.action` 之后对加密分享先调用 `checkAccessCode.action` 换取 `shareId`，再递归调用 `listShareDir.action`（同时兼容 JSON `fileListAO` 与 XML `<folder>/<file>`）；内置 `safeJsonParse` 提前将 16 位以上长整型雪花 ID 转为字符串，彻底消除 JS `Number` 精度丢失导致的漏文件问题。
+* **移动云盘**：接入公开接口 `POST https://share-kd-njs.yun.139.com/yun-share/richlifeApp/devapp/IOutLink/getOutLinkInfoV6`，从 `pCaID: "root"` 递归展开 `caLst`/`coLst`，免登即可获取多级目录、累加 `coSize` 并提取 `nickName`。
+
+### 6.2 统一 20 条分页、游标翻页与按需单目录展开
+* **防断层分页**：首次采样与按需翻页统一按 **20 条/页** 拉取；在 `collectMultiLevelTree` 中，仅当 `totalCount + 20 <= maxItems` 时才继续出队展开下一个子目录，避免半页截断导致跨页漏文件。
+* **游标分页兼容**：迅雷（`next_page_token` → `page_token`）与阿里云盘（`next_marker` → `marker`）按文件夹维度缓存在 10 分钟 TTL 的 `shareSessionCache` 中，翻页结束游标为空即自动隐藏「加载更多...」，后端 `expand_folder` 同时具备 0 新增条目自动停页兜底。
+* **页面与弹窗双向按需展开**：目录节点携带 `node_id`、`expanded`、`has_more`、`next_page`；用户在网页详情弹窗（`MOEPANS_EXPAND_FOLDER`）或扩展弹窗点击「展开加载 / 加载更多...」时，扩展仅对目标单个文件夹发 1 次请求，并将结果经 `POST /api/client/check/expand-folder` 增量合并入库，前端重绘时完整保留用户已手动折叠的目录状态与滚动位置。

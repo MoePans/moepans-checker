@@ -1461,6 +1461,203 @@ async function checkHtmlPage(shareUrl, deadPatterns, alivePatterns) {
   }
 }
 
+
+async function checkGuangya(shareId, shareCode = "", shareUrl = "") {
+  const sid = String(shareId || "").trim();
+  const reqUrl = "https://api.guangyapan.com/userres/v1/get_share_summary";
+  if (!sid) {
+    return { result: "uncertain", rawCode: "no_share_id", httpStatus: 0, requestUrl: shareUrl, message: "未解析出光鸭分享 ID" };
+  }
+  if (!sid.includes("_")) {
+    return { result: "uncertain", rawCode: "incomplete_share_id", httpStatus: 0, requestUrl: shareUrl, message: "光鸭分享码缺少 _userId 后缀，无法验证" };
+  }
+
+  let pwd = String(shareCode || "").trim();
+  if (!pwd && shareUrl) {
+    const pm = shareUrl.match(/(?:[?&](?:pwd|code|shareCode)=|提取码[:：=\s]*|密码[:：=\s]*)([A-Za-z0-9]{3,8})/i);
+    if (pm) pwd = pm[1];
+  }
+
+  const deadWords = ["分享已失效", "失效", "链接错误", "不存在", "已删除", "违规", "过期", "not_found", "expired", "deleted"];
+  const lockWords = ["提取码", "密码", "需要验证", "passcode", "password", "sharecode"];
+  const jsonHeaders = { "Content-Type": "application/json", Accept: "application/json, text/plain, */*" };
+
+  try {
+    // 1. 免登录获取分享概要（昵称、状态、总文件数、总容量）
+    const sumBody = { shareId: sid };
+    if (pwd) sumBody.code = pwd;
+    const sumRes = await fetchWithTimeout(reqUrl, {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify(sumBody)
+    });
+    const sumJson = await sumRes.json().catch(() => null);
+    if (!sumRes.ok || !sumJson) {
+      return { result: "uncertain", rawCode: `http_${sumRes.status}`, httpStatus: sumRes.status, requestUrl: reqUrl, message: `光鸭概要接口 HTTP ${sumRes.status}` };
+    }
+
+    const msg = String(sumJson.msg || sumJson.message || "").trim();
+    const code = Number(sumJson.code ?? 0);
+    const data = (sumJson.data && typeof sumJson.data === "object") ? sumJson.data : null;
+
+    if (!data || (msg && msg !== "success")) {
+      if (lockWords.some((w) => msg.toLowerCase().includes(w.toLowerCase()))) {
+        return { result: "ok", rawCode: String(code || "locked"), httpStatus: sumRes.status, requestUrl: reqUrl, message: msg || "需要提取码（链接有效）" };
+      }
+      if (code === 201 || deadWords.some((w) => msg.toLowerCase().includes(w.toLowerCase()))) {
+        return { result: "dead", rawCode: String(code || "dead"), httpStatus: sumRes.status, requestUrl: reqUrl, message: msg || "光鸭分享已失效" };
+      }
+      return { result: "uncertain", rawCode: String(code || "unknown"), httpStatus: sumRes.status, requestUrl: reqUrl, message: msg || "光鸭分享状态未知" };
+    }
+
+    const shareStatus = data.shareStatus;
+    if (shareStatus !== undefined && Number(shareStatus) !== 1) {
+      return { result: "dead", rawCode: `status_${shareStatus}`, httpStatus: sumRes.status, requestUrl: reqUrl, message: `分享已失效(status=${shareStatus})` };
+    }
+    const totalNum = data.totalFileNum !== undefined ? Number(data.totalFileNum) : null;
+    if (totalNum !== null && totalNum <= 0) {
+      return { result: "dead", rawCode: "empty_share", httpStatus: sumRes.status, requestUrl: reqUrl, message: "分享文件列表为空" };
+    }
+
+    const shareAuthor = String(data.nickName || data.nickname || "").trim();
+    const summarySize = Number(data.totalFileSize || 0) || 0;
+
+    // 2. 获取临时访问令牌 accessToken（免登录）
+    let accessToken = "";
+    try {
+      const tkBody = { shareId: sid };
+      if (pwd) tkBody.code = pwd;
+      const tkRes = await fetchWithTimeout("https://api.guangyapan.com/userres/v1/get_share_access_token", {
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify(tkBody)
+      });
+      const tkJson = await tkRes.json().catch(() => null);
+      accessToken = String(tkJson?.data?.accessToken || "").trim();
+    } catch {}
+
+    const fileTree = [];
+    let walkedSize = 0;
+    let treeTruncated = false;
+
+    // 3. 递归拉取文件树（每页 20 项，支持 cursor 翻页与按需展开）
+    if (accessToken) {
+      const cursors = {};
+      setShareSession("guangya", shareUrl, { shareId: sid, accessToken, cursors });
+      const MAX_ITEMS = 80;
+      const MAX_DEPTH = 4;
+      const seenDirs = new Set();
+
+      const walkDir = async (parentId, prefix, depth, parentNode = null) => {
+        if (depth > MAX_DEPTH || fileTree.length >= MAX_ITEMS) {
+          treeTruncated = true;
+          return;
+        }
+        const dirKey = parentId || "__root__";
+        if (parentId && seenDirs.has(parentId)) return;
+        if (parentId) seenDirs.add(parentId);
+
+        let cursor = null;
+        let pageIdx = 0;
+        const pageItems = [];
+        let morePagesLeft = false;
+
+        while (pageIdx < 4 && fileTree.length + pageItems.length + 20 <= MAX_ITEMS) {
+          const listBody = { accessToken, pageSize: 20 };
+          if (parentId) listBody.parentId = parentId;
+          if (cursor !== null && cursor !== "") listBody.cursor = cursor;
+          const lr = await fetchWithTimeout("https://api.guangyapan.com/userres/v1/get_share_page_files_list", {
+            method: "POST",
+            headers: jsonHeaders,
+            body: JSON.stringify(listBody)
+          });
+          const lj = await lr.json().catch(() => null);
+          const ldata = lj?.data || {};
+          const items = Array.isArray(ldata.list) ? ldata.list : [];
+          const hasMoreFlag = ldata.hasMore !== undefined
+            ? Boolean(ldata.hasMore)
+            : (items.length >= 20 && Boolean(ldata.cursor || ldata.nextCursor));
+          const nextCursor = ldata.cursor !== undefined && ldata.cursor !== null
+            ? ldata.cursor
+            : (ldata.nextCursor || null);
+          cursors[dirKey] = nextCursor;
+
+          for (const it of items) {
+            pageItems.push(it);
+          }
+
+          pageIdx += 1;
+          if (!hasMoreFlag || nextCursor === null || nextCursor === "" || items.length < 20) break;
+          cursor = nextCursor;
+          if (fileTree.length + pageItems.length + 20 > MAX_ITEMS || pageIdx >= 4) {
+            morePagesLeft = true;
+            treeTruncated = true;
+            break;
+          }
+        }
+        if (morePagesLeft && parentNode) {
+          parentNode.has_more = true;
+          parentNode.next_page = pageIdx + 1;
+        }
+
+        // 严格按 DFS 前序输出：每个文件夹节点紧跟其下级子节点，确保前端目录树栈重建层级 100% 准确
+        let expandedDirs = 0;
+        for (const it of pageItems) {
+          if (fileTree.length >= MAX_ITEMS) {
+            treeTruncated = true;
+            break;
+          }
+          const fname = String(it?.fileName || it?.name || "").trim();
+          if (!fname) continue;
+          const fid = String(it?.fileId || it?.id || "");
+          const isDir = (it?.resType !== undefined && it?.resType !== null)
+            ? Number(it.resType) === 2
+            : (Number(it?.dirType) === 1 && !(Number(it?.fileSize || it?.size || 0) > 0));
+          const fsize = isDir ? 0 : (Number(it?.fileSize || it?.size || 0) || 0);
+          const fpath = prefix ? `${prefix}/${fname}` : fname;
+          walkedSize += fsize;
+          const node = { name: fname, path: fpath, depth, is_dir: isDir, size: fsize };
+          if (isDir) {
+            node.node_id = fid;
+            node.expanded = false;
+          }
+          fileTree.push(node);
+
+          if (isDir && fid) {
+            if (expandedDirs < 15 && depth < MAX_DEPTH && fileTree.length + 20 <= MAX_ITEMS) {
+              expandedDirs += 1;
+              node.expanded = true;
+              await walkDir(fid, fpath, depth + 1, node);
+            } else {
+              treeTruncated = true;
+            }
+          }
+        }
+        if (morePagesLeft) treeTruncated = true;
+      };
+
+      try {
+        await walkDir("", "", 0);
+      } catch {}
+    }
+
+    return {
+      result: "ok",
+      rawCode: "ok",
+      httpStatus: sumRes.status,
+      requestUrl: reqUrl,
+      message: `有效(${totalNum ?? fileTree.length}项)`,
+      fileTree,
+      totalSize: summarySize || walkedSize,
+      sizeExact: summarySize > 0,
+      treeTruncated: Boolean(treeTruncated || (totalNum && totalNum > fileTree.length)),
+      shareAuthor
+    };
+  } catch (err) {
+    return { result: "uncertain", rawCode: "network_error", httpStatus: 0, requestUrl: reqUrl, message: `光鸭请求异常: ${err?.message || "超时"}` };
+  }
+}
+
 async function checkSingleTask(task) {
   const pan = String(task.pan_type || "").toLowerCase();
   const shareUrl = String(task.share_link || "").trim();
@@ -1476,6 +1673,7 @@ async function checkSingleTask(task) {
   if (pan === "mobile" || pan === "139") return checkMobile139(shareUrl, shareCode);
   if (pan === "xunlei" || pan === "thunder") return checkXunlei(shareId, shareCode, shareUrl);
   if (pan === "baidu") return checkBaidu(shareUrl, shareCode);
+  if (pan === "guangya" || pan === "guangyapan") return checkGuangya(shareId, shareCode, shareUrl);
   return { result: "uncertain", rawCode: "unsupported", httpStatus: 0, requestUrl: shareUrl, message: `暂不支持主动探测(${pan})` };
 }
 
@@ -1514,6 +1712,7 @@ async function runTasksWithLimit(origin, tasks, tabId) {
         file_tree: Array.isArray(checkRes.fileTree) ? checkRes.fileTree : [],
         total_size: Number(checkRes.totalSize || 0) || null,
         tree_truncated: Boolean(checkRes.treeTruncated),
+        size_exact: Boolean(checkRes.sizeExact),
         share_author: checkRes.shareAuthor || ""
       });
       if (checkRes.result === "ok") await bumpStat("activeOk");
@@ -1532,6 +1731,7 @@ async function runTasksWithLimit(origin, tasks, tabId) {
             shareCode: task.share_code || "",
             shareAuthor: authorStr,
             totalSize: totalBytes,
+            sizeExact: Boolean(checkRes.sizeExact),
             treeTruncated: Boolean(checkRes.treeTruncated),
             fileTree: treeArr,
             updatedAt: new Date().toISOString()
@@ -1803,6 +2003,53 @@ async function expandSingleFolder({ panType, shareUrl, shareCode = "", folderId,
       const j = await r.json().catch(() => null);
       const arr = Array.isArray(j?.list) ? j.list : [];
       rawKids = arr.map((it) => ({ id: String(it?.path || it?.fs_id || ""), name: String(it?.server_filename || "").trim(), is_dir: Number(it?.isdir) === 1, size: Number(it?.size || 0) }));
+    } else if (pan === "guangya" || pan === "guangyapan") {
+      const jsonHeaders = { "Content-Type": "application/json", Accept: "application/json, text/plain, */*" };
+      let sess = getShareSession("guangya", shareUrl);
+      if (!sess || !sess.accessToken) {
+        const tkBody = { shareId };
+        if (pwd) tkBody.code = pwd;
+        const tkRes = await fetchWithTimeout("https://api.guangyapan.com/userres/v1/get_share_access_token", {
+          method: "POST",
+          headers: jsonHeaders,
+          body: JSON.stringify(tkBody)
+        });
+        const tkJson = await tkRes.json().catch(() => null);
+        if (tkJson?.data?.accessToken) {
+          sess = { shareId, accessToken: String(tkJson.data.accessToken), cursors: {} };
+          setShareSession("guangya", shareUrl, sess);
+        }
+      }
+      if (!sess?.accessToken) return { ok: false, message: "无法获取光鸭分享访问令牌" };
+      if (!sess.cursors) sess.cursors = {};
+      const listBody = { accessToken: sess.accessToken, pageSize: 20, parentId: fid };
+      if (pageNum > 1) {
+        const savedCur = sess.cursors[fid];
+        listBody.cursor = (savedCur !== undefined && savedCur !== null && savedCur !== "")
+          ? savedCur
+          : (pageNum - 1) * 20;
+      }
+      const r = await fetchWithTimeout("https://api.guangyapan.com/userres/v1/get_share_page_files_list", {
+        method: "POST",
+        headers: jsonHeaders,
+        body: JSON.stringify(listBody)
+      });
+      const j = await r.json().catch(() => null);
+      const ldata = j?.data || {};
+      const nextCursor = ldata.cursor !== undefined && ldata.cursor !== null
+        ? ldata.cursor
+        : (ldata.nextCursor || null);
+      sess.cursors[fid] = nextCursor;
+      cursorHasMore = ldata.hasMore !== undefined
+        ? Boolean(ldata.hasMore)
+        : (Array.isArray(ldata.list) && ldata.list.length >= 20 && nextCursor !== null && nextCursor !== "");
+      const arr = Array.isArray(ldata.list) ? ldata.list : [];
+      rawKids = arr.map((it) => ({
+        id: String(it?.fileId || it?.id || ""),
+        name: String(it?.fileName || it?.name || "").trim(),
+        is_dir: (it?.resType !== undefined && it?.resType !== null) ? Number(it.resType) === 2 : (Number(it?.dirType) === 1 && !(Number(it?.fileSize || it?.size || 0) > 0)),
+        size: Number(it?.fileSize || it?.size || 0) || 0
+      }));
     } else {
       return { ok: false, message: `暂不支持该网盘按需展开(${pan})` };
     }
